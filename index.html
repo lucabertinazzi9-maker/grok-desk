@@ -33,17 +33,33 @@ pre{background:#16161d;border-radius:12px;padding:12px;overflow:auto;white-space
   var id = localStorage.getItem(KEY);
   var meta = document.getElementById("meta"), out = document.getElementById("out");
   if (!id) { meta.innerHTML = '<span class="err">No data link. Open the app once with the private link.</span>'; return; }
-  function base(){ return "https://gist.githubusercontent.com/" + OWNER + "/" + id + "/raw/"; }
-  function load(){
+  // Freshness (measured 2026-11-02): raw URL + ?t= cache-bust shows a new write after 1-43s;
+  // the unauthenticated gist API after 2-13s but allows only 60 calls/h per phone IP.
+  // So: raw every 15s, API every 75s (48/h), and show whichever copy has the newest ts.
+  var best = null, bestAt = 0, lastApi = 0;
+  function show(j, src, ms){
+    if (best && j.ts && best.ts && Date.parse(j.ts) < Date.parse(best.ts)) return;
+    best = j; bestAt = Date.now();
+    out.textContent = JSON.stringify(j, null, 2);
+    var age = j.ts ? Math.round((Date.now() - Date.parse(j.ts)) / 1000) + "s old" : "";
+    meta.textContent = "fetched " + new Date().toLocaleTimeString() + " via " + src + " · " + ms + "ms · data " + age;
+  }
+  function fail(e){ if (!best) meta.innerHTML = '<span class="err">fetch failed: ' + e.message + '</span>'; }
+  function viaRaw(){
     var t0 = Date.now();
-    fetch(base() + "state.json?t=" + t0, {cache: "no-store"})
+    return fetch("https://gist.githubusercontent.com/" + OWNER + "/" + id + "/raw/state.json?t=" + t0, {cache: "no-store"})
       .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function(j){
-        out.textContent = JSON.stringify(j, null, 2);
-        var age = j.ts ? Math.round((Date.now() - Date.parse(j.ts)) / 1000) + "s old" : "";
-        meta.textContent = "fetched " + new Date().toLocaleTimeString() + " · " + (Date.now() - t0) + "ms · data " + age;
-      })
-      .catch(function(e){ meta.innerHTML = '<span class="err">fetch failed: ' + e.message + '</span>'; });
+      .then(function(j){ show(j, "raw", Date.now() - t0); });
+  }
+  function viaApi(){
+    var t0 = Date.now(); lastApi = t0;
+    return fetch("https://api.github.com/gists/" + id, {cache: "no-store"})
+      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(g){ var f = g.files && g.files["state.json"]; if (f && !f.truncated) show(JSON.parse(f.content), "api", Date.now() - t0); });
+  }
+  function load(){
+    viaRaw().catch(fail);
+    if (Date.now() - lastApi >= 75000) viaApi().catch(function(){});
   }
   load(); setInterval(load, 15000);
 })();
