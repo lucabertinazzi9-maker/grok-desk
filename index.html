@@ -4,65 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Desk">
-<meta name="theme-color" content="#0b0b0f">
+<meta name="apple-mobile-web-app-title" content="Grok Bot">
+<meta name="theme-color" content="#000000">
+<meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Desk</title>
-<style>
-body{margin:0;padding:env(safe-area-inset-top) 16px 16px;background:#0b0b0f;color:#e8e8ee;font:15px -apple-system,system-ui,sans-serif}
-h1{font-size:20px;margin:16px 0 4px}#meta{color:#8a8a99;font-size:13px}
-pre{background:#16161d;border-radius:12px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-all}
-.err{color:#ff5a5a}
-</style>
+<link rel="stylesheet" href="app.css">
+<title>Grok Bot</title>
 </head>
 <body>
-<h1>Desk</h1>
-<div id="meta">loading…</div>
-<pre id="out"></pre>
-<script>
-(function(){
-  var OWNER = "lucabertinazzi9-maker";
-  var KEY = "desk.data";
-  var m = location.hash.match(/[#&]d=([0-9a-f]+)/i);
-  if (m) {
-    localStorage.setItem(KEY, m[1]);
-    history.replaceState(null, "", location.pathname + location.search); // drop the id from the visible URL
-  }
-  var id = localStorage.getItem(KEY);
-  var meta = document.getElementById("meta"), out = document.getElementById("out");
-  if (!id) { meta.innerHTML = '<span class="err">No data link. Open the app once with the private link.</span>'; return; }
-  // Freshness (measured 2026-11-02): raw URL + ?t= cache-bust shows a new write after 1-43s;
-  // the unauthenticated gist API after 2-13s but allows only 60 calls/h per phone IP.
-  // So: raw every 15s, API every 75s (48/h), and show whichever copy has the newest ts.
-  var best = null, bestAt = 0, lastApi = 0;
-  function show(j, src, ms){
-    if (best && j.ts && best.ts && Date.parse(j.ts) < Date.parse(best.ts)) return;
-    best = j; bestAt = Date.now();
-    out.textContent = JSON.stringify(j, null, 2);
-    var age = j.ts ? Math.round((Date.now() - Date.parse(j.ts)) / 1000) + "s old" : "";
-    meta.textContent = "fetched " + new Date().toLocaleTimeString() + " via " + src + " · " + ms + "ms · data " + age;
-  }
-  function fail(e){ if (!best) meta.innerHTML = '<span class="err">fetch failed: ' + e.message + '</span>'; }
-  function viaRaw(){
-    var t0 = Date.now();
-    return fetch("https://gist.githubusercontent.com/" + OWNER + "/" + id + "/raw/state.json?t=" + t0, {cache: "no-store"})
-      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function(j){ show(j, "raw", Date.now() - t0); });
-  }
-  function viaApi(){
-    var t0 = Date.now(); lastApi = t0;
-    return fetch("https://api.github.com/gists/" + id, {cache: "no-store"})
-      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function(g){ var f = g.files && g.files["state.json"]; if (f && !f.truncated) show(JSON.parse(f.content), "api", Date.now() - t0); });
-  }
-  function load(){
-    viaRaw().catch(fail);
-    if (Date.now() - lastApi >= 75000) viaApi().catch(function(){});
-  }
-  load(); setInterval(load, 15000);
-})();
-</script>
+<div id="banner" class="banner" hidden></div>
+<main id="view"></main>
+<nav id="tabs" class="tabs">
+  <button data-tab="home" class="on"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>Home</span></button>
+  <button data-tab="agents"><svg viewBox="0 0 24 24"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M1.5 19c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5zM11.5 19c.6-3.3 2.8-5 5.5-5s4.9 1.7 5.5 5z"/></svg><span>Agents</span></button>
+  <button data-tab="activity"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Activity</span></button>
+  <button data-tab="account"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c.8-4.4 4-6.5 8-6.5s7.2 2.1 8 6.5z"/></svg><span>Account</span></button>
+</nav>
+<div id="sheet" class="sheet" hidden></div>
+<div id="toast" class="toast" hidden></div>
+<script src="chart.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
